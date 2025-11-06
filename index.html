@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Night Sky Futuristic Payroll Calculator — Fixed</title>
+  <style>
+    :root{
+      --accent1:#8a2be2;--accent2:#00c2ff;--text:#e8f0ff;--muted:rgba(232,240,255,0.7);
+      --bg:#071028;--card:rgba(255,255,255,0.04);
+    }
+    body{margin:0;font-family:Inter,system-ui;background:linear-gradient(180deg,var(--bg),#021026);color:var(--text);}
+    .wrap{max-width:960px;margin:24px auto;padding:20px}
+    .card{background:var(--card);border-radius:12px;padding:16px;backdrop-filter:blur(8px);}
+    label{display:block;margin-bottom:4px;font-size:13px;color:var(--muted)}
+    input[type=number],input[type=date]{width:100%;padding:8px;border-radius:8px;border:none;font-size:14px;margin-bottom:6px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .half{flex:1}
+    button{cursor:pointer}
+    .small-btn{background:linear-gradient(90deg,var(--accent2),var(--accent1));color:white;border:none;padding:8px 10px;border-radius:8px}
+    .results p{margin:6px 0;color:var(--muted);font-size:14px}
+    .results strong{color:var(--text);display:inline-block;width:150px}
+    /* Style untuk detail potongan */
+    .potongan-detail p{margin:2px 0;font-size:12px;color:rgba(255,123,123,0.7);}
+    .potongan-detail strong{width:130px;font-weight:normal;}
+
+    table{width:100%;border-collapse:collapse;font-size:13px;color:var(--muted)}
+    th,td{padding:6px;border-bottom:1px solid rgba(255,255,255,0.08)}
+    th{color:var(--text);text-align:left}
+    .badge-red{color:#ff7b7b}.badge-blue{color:#7baaff}.badge-gray{color:#ccc}
+    .lembur-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:rgba(255,255,255,0.04);padding:6px;border-radius:8px}
+    .lembur-row button{background:none;border:none;color:#ff8a8a;font-size:18px}
+    
+    /* STYLE UNTUK CETAK/PRINT: HANYA JUDUL, HASIL PERHITUNGAN, DAN POTONGAN */
+    @media print {
+        body { background: white !important; color: black !important; }
+        body > :not(.wrap) { display: none !important; } /* Sembunyikan elemen luar wrap */
+        .wrap { margin: 0; max-width: none; padding: 0; }
+        .card { 
+            background: none; 
+            box-shadow: none; 
+            border-radius: 0; 
+            backdrop-filter: none; 
+            padding: 20px; 
+            border: 1px solid #ccc; /* Beri batas untuk tampilan slip */
+        }
+        
+        /* Set semua teks kembali ke hitam/default */
+        .results strong, .results p, h2, h3, h4, .potongan-detail p { 
+            color: black !important; 
+            text-align: left !important;
+        }
+
+        /* Sembunyikan semua elemen input, tombol, dan rincian yang tidak perlu */
+        .row, 
+        #detailsTable, 
+        .half, 
+        label, 
+        input, 
+        #lemburList, /* Targetkan daftar lembur yang masih muncul */
+        .card > p:not(.results p), /* Sembunyikan p di luar results (misal: p.text-center) */
+        .card > div:not(.results, .potongan-detail) /* Sembunyikan div lain seperti rincian harian */
+        { display: none !important; }
+
+        /* Pastikan elemen utama slip gaji terlihat */
+        .results, 
+        .potongan-detail, 
+        .card > h2,
+        .results h3,
+        .potongan-detail h4
+        { display: block !important; margin-top: 10px; }
+        
+        .results strong { display: inline-block; width: 150px; }
+        .potongan-detail strong { width: 130px; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h2 style="text-align:center">Payroll Calculator</h2>
+    <p style="text-align:center;color:var(--muted)">Perhitungan Lembur & Potongan Aktif</p>
+
+    <label>Gaji Pokok Bulanan (Rp)</label>
+    <input id="gaji_pokok" type="number" value="5000000" oninput="computeAndShow()">
+    <div class="row">
+      <div class="half">
+        <label>Jumlah Jam Lembur (Manual)</label>
+        <input id="jam_lembur" type="number" value="0" oninput="computeAndShow()">
+      </div>
+      <div class="half">
+        <label>Tunjangan Bulanan (Rp)</label>
+        <input id="tunjangan" type="number" value="0" oninput="computeAndShow()">
+      </div>
+    </div>
+
+    <label style="margin-top:8px">Tanggal Lembur Harian</label>
+    <div id="lemburList"></div>
+    <div class="row">
+      <button class="small-btn" onclick="tambahTanggalLembur()">+ Tambah Tanggal</button>
+      <button class="small-btn" onclick="exportCSV()">📤 Ekspor CSV</button>
+      <label class="small-btn" style="display:flex;align-items:center;gap:6px">
+        📂 Impor CSV <input id="importFile" type="file" accept=".csv" style="display:none" onchange="importCSV(event)">
+      </label>
+      <button class="small-btn" onclick="clearAll()">🗑️ Hapus Semua</button>
+      
+      <button class="small-btn" onclick="copyResults()">📋 Salin Hasil</button>
+      <button class="small-btn" onclick="printSlip()">🖨️ Cetak Slip</button>
+    </div>
+
+    <div class="row" style="margin-top:8px">
+      <div class="half">
+        <label>Bonus Tahunan (Rp)</label>
+        <input id="bonus_tahunan" type="number" value="0" oninput="computeAndShow()">
+      </div>
+      <div class="half">
+        <label>Potongan Lain (Rp) - Manual</label>
+        <input id="potongan_lain" type="number" value="0" oninput="computeAndShow()">
+      </div>
+    </div>
+    
+    <label>Potongan BPJS Kesehatan (Rp) - Manual</label>
+    <input id="potongan_bpjs_kes" type="number" value="0" oninput="computeAndShow()">
+
+    <div class="results" style="margin-top:10px">
+      <h3>Hasil Perhitungan</h3>
+      <p><strong>Total Jam Lembur:</strong><span id="total_jam">0 jam</span></p>
+      <p><strong>Upah Lembur:</strong><span id="hasil_lembur">-</span></p>
+      <p><strong>Gaji Kotor:</strong><span id="gaji_kotor">-</span></p>
+      
+      <h4 style="margin-top:10px;margin-bottom:5px">Rincian Potongan</h4>
+      <div class="potongan-detail">
+        <p><strong>PPh 21 (5% Gaji Kotor):</strong><span id="pot_pph">-</span></p>
+        <p><strong>JHT Karyawan (2% Gaji Pokok):</strong><span id="pot_jht">-</span></p>
+        <p><strong>JP Karyawan (1% Gaji Pokok):</strong><span id="pot_jp">-</span></p>
+        <p><strong>BPJS Kesehatan (Manual):</strong><span id="pot_bpjs_kes_display">-</span></p>
+        <p><strong>Potongan Lain (Manual):</strong><span id="pot_lain_display">-</span></p>
+      </div>
+      
+      <p style="margin-top:10px"><strong>Total Potongan:</strong><span id="total_potongan" style="color:#ff7b7b">-</span></p>
+      <p><strong>Gaji Bersih:</strong><span id="gaji_bersih" style="color:var(--accent2);font-size:16px">-</span></p>
+    </div>
+
+    <div style="margin-top:12px">
+      <h4>Rincian Perhitungan Harian</h4>
+      <table id="detailsTable">
+        <thead><tr><th>Tanggal</th><th>Status</th><th>Jam</th><th>Multiplier</th><th>Upah/Jam</th><th>Nilai</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const tanggalMerah=["2025-01-01","2025-01-29","2025-03-29","2025-04-18","2025-04-19","2025-04-20","2025-04-21","2025-05-01","2025-05-12","2025-05-29","2025-06-06","2025-06-27","2025-08-17","2025-09-05","2025-12-25"];
+const STORAGE_KEY="lembur_final_fix";
+const $=id=>document.getElementById(id);
+const formatRupiah=n=>new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(n);
+
+function tambahTanggalLembur(tanggal="",jam=0){
+  const list=$("lemburList");
+  const row=document.createElement("div");
+  row.className="lembur-row";
+  row.innerHTML=`<input type="date" class="tgl" value="${tanggal}" onchange="updateStatus(this)">
+  <input type="number" class="jam" min="0" value="${jam}" oninput="computeAndShow()">
+  <span class="status-label badge-gray">Hari kerja</span>
+  <button onclick="hapusBaris(this)">✖</button>`;
+  list.appendChild(row);
+  if(tanggal) updateStatus(row.querySelector(".tgl"));
+  saveData();computeAndShow();
+}
+
+function updateStatus(input){
+  const lbl=input.parentElement.querySelector(".status-label");
+  const v=input.value;
+  if(!v){lbl.textContent="Hari kerja";lbl.className="status-label badge-gray";return;}
+  const d=new Date(v);const day=d.getDay();const wk=(day===0||day===6);const hol=tanggalMerah.includes(v);
+  
+  if(hol){lbl.textContent="Tanggal Merah (Libur)";lbl.className="status-label badge-red";}
+  else if(wk){lbl.textContent="Akhir Pekan (Libur)";lbl.className="status-label badge-blue";}
+  else{lbl.textContent="Hari kerja";lbl.className="status-label badge-gray";}
+}
+
+function hapusBaris(b){b.parentElement.remove();saveData();computeAndShow();}
+function clearAll(){if(confirm("Hapus semua data?")){$("lemburList").innerHTML="";localStorage.removeItem(STORAGE_KEY);computeAndShow();}}
+
+function saveData(){
+  const data=[...document.querySelectorAll(".lembur-row")].map(r=>({
+    t:r.querySelector(".tgl").value,j:r.querySelector(".jam").value
+  }));
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+}
+function loadData(){
+  const d=localStorage.getItem(STORAGE_KEY);if(!d)return;
+  const arr=JSON.parse(d);$("lemburList").innerHTML="";
+  arr.forEach(a=>tambahTanggalLembur(a.t,a.j));
+}
+
+// FUNGSI PERHITUNGAN LEMBUR BERTINGKAT (Sesuai modifikasi sebelumnya)
+function hitungUpahLembur(upahPerJam, jamLembur, isHariLibur) {
+    let totalUpah = 0;
+    let jamSisa = jamLembur;
+    let multText;
+
+    if (!isHariLibur) { // HARI KERJA (Senin - Jumat)
+        // Jam ke-1: 1.5x
+        if (jamSisa >= 1) {
+            totalUpah += 1.5 * upahPerJam;
+            jamSisa--;
+        }
+        // Jam ke-2 dan seterusnya: 2.0x
+        if (jamSisa > 0) {
+            totalUpah += jamSisa * 2.0 * upahPerJam;
+        }
+        multText = jamLembur > 1 ? "1.5/2.0x" : (jamLembur == 1 ? "1.5x" : "0x");
+        
+    } else { // AKHIR PEKAN / HARI LIBUR
+        // Jam ke-1 hingga ke-8: 2.0x
+        const jam2x = Math.min(jamLembur, 8);
+        totalUpah += jam2x * 2.0 * upahPerJam;
+        jamSisa -= jam2x;
+        
+        // Jam ke-9: 3.0x
+        if (jamSisa >= 1) { 
+            totalUpah += 3.0 * upahPerJam;
+            jamSisa--;
+        }
+        
+        // Jam ke-10 dan seterusnya: 4.0x
+        if (jamSisa > 0) { 
+            totalUpah += jamSisa * 4.0 * upahPerJam;
+        }
+
+        multText = jamLembur <= 8 ? "2.0x" : (jamLembur == 9 ? "2.0/3.0x" : "2.0-4.0x");
+    }
+
+    return {nilai: totalUpah, multiplier: multText};
+}
+
+// FUNGSI BARU: MENYALIN HASIL PERHITUNGAN
+function copyResults() {
+    // Ambil data dari elemen hasil
+    const totalJam = $("total_jam").textContent;
+    const hasilLembur = $("hasil_lembur").textContent;
+    const gajiKotor = $("gaji_kotor").textContent;
+    const totalPotongan = $("total_potongan").textContent;
+    const gajiBersih = $("gaji_bersih").textContent;
+
+    const potPPh = $("pot_pph").textContent;
+    const potJHT = $("pot_jht").textContent;
+    const potJP = $("pot_jp").textContent;
+    const potBPJSKes = $("pot_bpjs_kes_display").textContent;
+    const potLain = $("pot_lain_display").textContent;
+    
+    const gajiPokok = formatRupiah(+$("gaji_pokok").value || 0);
+
+    // Format output teks
+    const textToCopy = `
+=== Slip Gaji Night Sky ===
+Gaji Pokok: ${gajiPokok}
+Tunjangan: ${formatRupiah(+$("tunjangan").value || 0)}
+Bonus (Bulanan): ${formatRupiah(+(+$("bonus_tahunan").value || 0) / 12)}
+---------------------------
+Upah Lembur (${totalJam}): ${hasilLembur}
+GAJI KOTOR: ${gajiKotor}
+---------------------------
+Rincian Potongan:
+  - PPh 21 (5% Gaji Kotor): ${potPPh}
+  - JHT Karyawan (2% Gaji Pokok): ${potJHT}
+  - JP Karyawan (1% Gaji Pokok): ${potJP}
+  - BPJS Kes (Manual): ${potBPJSKes}
+  - Potongan Lain (Manual): ${potLain}
+TOTAL POTONGAN: ${totalPotongan}
+---------------------------
+GAJI BERSIH: ${gajiBersih}
+===========================
+    `.trim();
+
+    // Salin ke clipboard
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        alert("Hasil perhitungan slip gaji telah disalin ke clipboard!");
+    }).catch(err => {
+        console.error('Gagal menyalin:', err);
+        alert("Gagal menyalin hasil. Periksa konsol browser.");
+    });
+}
+
+// FUNGSI CETAK SLIP
+function printSlip() {
+    window.print();
+}
+
+function computeAndShow(){
+  saveData();
+  const rows=[...document.querySelectorAll(".lembur-row")];
+  const gaji=+$("gaji_pokok").value||0;
+  const tunj=+$("tunjangan").value||0;
+  const jamManual=+$("jam_lembur").value||0; 
+  const bonusT=+$("bonus_tahunan").value||0;
+  const potLain=+$("potongan_lain").value||0;
+  const potBPJSKes=+$("potongan_bpjs_kes").value||0;
+  
+  const upah=gaji/173; 
+  
+  let totalJam=jamManual, totalRp=0;
+  
+  // Hitung Upah Lembur Manual (Asumsi 2.0x)
+  totalRp += jamManual * upah * 2.0; 
+
+  const tbody=$("detailsTable").querySelector("tbody");
+  tbody.innerHTML="";
+
+  rows.forEach(r=>{
+    const t=r.querySelector(".tgl").value;
+    const jam=+r.querySelector(".jam").value||0;
+    if(!t||jam<=0)return;
+    
+    const d=new Date(t);
+    const day=d.getDay();
+    const wk=(day===0||day===6);
+    const hol=tanggalMerah.includes(t); 
+    const isLibur = wk || hol;
+
+    const hasilHitung = hitungUpahLembur(upah, jam, isLibur);
+    const nilai = hasilHitung.nilai;
+    const multText = hasilHitung.multiplier;
+    
+    totalJam+=jam;
+    totalRp+=nilai;
+    
+    const status=hol?"Tanggal Merah":wk?"Akhir Pekan":"Hari kerja";
+    const cls=hol?"badge-red":wk?"badge-blue":"badge-gray";
+    
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${t}</td><td class="${cls}">${status}</td><td>${jam}</td><td>${multText}</td><td>${formatRupiah(upah)}</td><td>${formatRupiah(nilai)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  $("total_jam").textContent=totalJam+" jam";
+  const bonusB=bonusT/12;
+  const kotor=gaji+tunj+bonusB+totalRp;
+  
+  // --- PERHITUNGAN POTONGAN BARU ---
+  
+  // Potongan Otomatis dari Gaji Pokok
+  const potJHT = gaji * 0.02; // JHT Karyawan (2% Gaji Pokok)
+  const potJP = gaji * 0.01;  // JP Karyawan (1% Gaji Pokok)
+  
+  // PPh 21 (5% Gaji Kotor - Sederhana)
+  const potPPh = kotor * 0.05; 
+  
+  // Total Potongan
+  const totPot = potPPh + potJHT + potJP + potBPJSKes + potLain;
+  const bersih = kotor - totPot;
+  
+  // --- MENAMPILKAN HASIL ---
+  $("hasil_lembur").textContent=formatRupiah(totalRp);
+  $("gaji_kotor").textContent=formatRupiah(kotor);
+  $("total_potongan").textContent=formatRupiah(totPot);
+  $("gaji_bersih").textContent=formatRupiah(bersih);
+  
+  // Menampilkan Detail Potongan
+  $("pot_pph").textContent=formatRupiah(potPPh);
+  $("pot_jht").textContent=formatRupiah(potJHT);
+  $("pot_jp").textContent=formatRupiah(potJP);
+  $("pot_bpjs_kes_display").textContent=formatRupiah(potBPJSKes);
+  $("pot_lain_display").textContent=formatRupiah(potLain);
+}
+
+
+function exportCSV(){
+  const rows=[...document.querySelectorAll(".lembur-row")];
+  if(rows.length===0){alert("Tidak ada data.");return;}
+  const gaji=+$("gaji_pokok").value||0;const upah=gaji/173;
+  
+  let csv="Tanggal,Jam Lembur,Status,Multiplier,Nilai\n";
+  
+  rows.forEach(r=>{
+    const t=r.querySelector(".tgl").value;
+    const jam=+r.querySelector(".jam").value||0;
+    if(!t||jam<=0)return;
+    
+    const d=new Date(t);
+    const day=d.getDay();const wk=(day===0||day===6);const hol=tanggalMerah.includes(t);
+    const isLibur = wk || hol;
+
+    const hasilHitung = hitungUpahLembur(upah, jam, isLibur);
+    const nilai=Math.round(hasilHitung.nilai);
+    const multText = hasilHitung.multiplier;
+    const status=hol?"Tanggal Merah":wk?"Akhir Pekan":"Hari kerja";
+    
+    csv+=`${t},${jam},"${status}",${multText},${nilai}\n`;
+  });
+  
+  const blob=new Blob([csv],{type:"text/csv"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="data_lembur.csv";a.click();
+}
+
+function importCSV(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const lines=ev.target.result.split(/\r?\n/).slice(1);
+    $("lemburList").innerHTML="";
+    lines.forEach(l=>{
+      if(!l.trim())return;
+      const [t,j]=l.split(",");
+      tambahTanggalLembur(t.trim(),parseFloat(j)||0);
+    });
+    e.target.value="";
+    computeAndShow();
+    alert("Impor selesai.");
+  };
+  r.readAsText(f);
+}
+
+window.addEventListener("DOMContentLoaded",()=>{loadData();computeAndShow();});
+</script>
+</body>
+</html>
